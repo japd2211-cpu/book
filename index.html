@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Book an Appointment</title>
+  <style>
+    :root{
+      --bg:#faf8fb;
+      --card:#ffffff;
+      --ink:#1f2937;
+      --muted:#6b7280;
+      --brand:#a78bfa;
+      --accent:#f472b6;
+      --ring: 0 0 0 4px rgba(167,139,250,.25);
+      --radius: 18px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--ink); background:linear-gradient(180deg,var(--bg),#fff);
+    }
+    .wrap{max-width:980px; margin:clamp(12px,4vw,40px) auto; padding:clamp(12px,3vw,28px);}
+    .header{display:flex; align-items:center; gap:16px; margin-bottom:22px;}
+    .logo img{height:60px; width:auto; border-radius:12px;}
+    h1{font-size:clamp(22px,4vw,34px); margin:0 0 6px 0;}
+    .sub{color:var(--muted); font-size:clamp(14px,2.2vw,16px)}
+
+    .card{background:var(--card); border-radius:var(--radius); box-shadow:0 10px 40px rgba(22, 8, 56, .08); padding:clamp(16px,3vw,28px); border:1px solid #eee;}
+    form{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+    label{font-weight:600; font-size:14px;}
+    input, select, textarea, button{font:inherit; color:inherit;}
+    .field{display:flex; flex-direction:column; gap:8px}
+    .control{border:1px solid #e5e7eb; border-radius:12px; padding:12px 14px; background:#fff; transition:.2s ease;}
+    .control:focus{outline:none; border-color:var(--brand); box-shadow:var(--ring)}
+    textarea.control{min-height:84px;}
+    .full{grid-column:1/-1}
+    .actions{display:flex; gap:12px; align-items:center; margin-top:8px}
+    .btn{border:none; border-radius:999px; padding:12px 18px; font-weight:700; cursor:pointer; transition:.2s ease; background:var(--brand); color:#fff; box-shadow:0 10px 24px rgba(167,139,250,.35);}
+    .btn:hover{transform:translateY(-1px)}
+    .btn.secondary{background:#1118270d; color:var(--ink); border:1px solid #e5e7eb; box-shadow:none}
+    .note{font-size:12px; color:var(--muted)}
+    .success{display:none; margin-top:16px; padding:12px 14px; border-radius:12px; background:#ecfeff; border:1px solid #a5f3fc; color:#155e75;}
+    .footer{margin-top:18px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; align-items:center; color:var(--muted); font-size:13px}
+    .slot-list{display:flex; gap:8px; flex-wrap:wrap}
+    .slot{padding:8px 12px; border-radius:999px; border:1px solid #e5e7eb; cursor:pointer; background:#fff; transition:.15s ease;}
+    .slot[aria-selected="true"]{background:var(--ink); color:#fff; border-color:var(--ink)}
+    @media (max-width:720px){form{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <div class="logo"><img src="CE.svg" alt="Canine Elegance Logo"></div>
+      <div>
+        <h1>Book an Appointment</h1>
+        <p class="sub">Open Monday–Saturday · 8:00am – 6:00pm</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <form id="bookingForm">
+        <div class="field"><label for="name">Full name</label><input id="name" name="name" class="control" placeholder="Jane Doe" required /></div>
+        <div class="field"><label for="phone">Phone (WhatsApp)</label><input id="phone" name="phone" class="control" placeholder="+1 787 000 0000" required /></div>
+        <div class="field"><label for="email">Email</label><input id="email" name="email" type="email" class="control" placeholder="you@example.com" /></div>
+        <div class="field"><label for="service">Service</label><select id="service" name="service" class="control" required><option value="">Select a service…</option><option value="Full Groom">Full Groom</option><option value="Bath & Brush">Bath & Brush</option><option value="Nail Trim">Nail Trim</option><option value="Consultation">Consultation</option></select></div>
+        <div class="field"><label for="date">Date</label><input id="date" name="date" type="date" class="control" required /><small class="note">We’re open Monday–Saturday · 8:00am – 6:00pm</small></div>
+        <div class="field"><label>Available time</label><div id="slots" class="slot-list"></div><input type="hidden" name="time" id="time" required /></div>
+        <div class="field full"><label for="notes">Notes (optional)</label><textarea id="notes" name="notes" class="control" placeholder="Dog breed, preferences, special requests…"></textarea></div>
+        <div class="actions full"><button type="submit" class="btn">Reserve</button><button type="button" id="resetBtn" class="btn secondary">Reset</button><span class="note" id="chosen"></span></div>
+        <div id="success" class="success full"></div>
+      </form>
+      <div class="footer"><span>Questions? Message us on <a href="#" id="waLink">WhatsApp</a>.</span><span class="note">Your data is used only to confirm your appointment.</span></div>
+    </div>
+  </div>
+ <script>
+  const BUSINESS_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Puerto_Rico';
+  const OPEN_DAYS = [1,1,1,1,1,1,0]; // Mon–Sat
+  const OPEN_HOUR = 8;
+  const CLOSE_HOUR = 18;
+  const LEAD_TIME_MIN = 30;
+
+  const SERVICE_DURATIONS = {
+    'Full Groom': 120,
+    'Bath & Brush': 45,
+    'Nail Trim': 10,
+    'Consultation': 30
+  };
+
+  // ✅ GLOBAL (available everywhere)
+  const WHATSAPP_NUMBER = "17873947404"; // +1 PR/USA, no + sign
+  const SHEETS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxRXzmVqNPF0ikvIUsTU0vpzg1ijvj1UI-jmFwqcLHzo58p7QN5pDqq1-G53K9NUhQC/exec";
+
+  const pad = n => String(n).padStart(2, '0');
+  function fmtDate(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+  function toLocal(d){return new Date(d.toLocaleString('en-US',{timeZone:BUSINESS_TZ}))}
+  function isOpenDay(d){const js=d.getDay();const monBased=(js+6)%7;return !!OPEN_DAYS[monBased];}
+
+  function nextOpenDate(start){
+    const d=new Date(start);
+    for(let i=0;i<14;i++){
+      if(isOpenDay(d)) return d;
+      d.setDate(d.getDate()+1);
+    }
+    return start;
+  }
+
+  function buildSlots(dateStr){
+    const el=document.getElementById('slots');
+    el.innerHTML='';
+    const chosen=document.getElementById('time');
+    chosen.value='';
+    document.getElementById('chosen').textContent='';
+
+    const base=new Date(`${dateStr}T00:00:00`);
+    const open=new Date(base); open.setHours(OPEN_HOUR,0,0,0);
+    const close=new Date(base); close.setHours(CLOSE_HOUR,0,0,0);
+
+    const now=toLocal(new Date());
+    const lead=new Date(now.getTime()+LEAD_TIME_MIN*60000);
+
+    const service=document.getElementById('service').value;
+    const SLOT_EVERY_MIN = SERVICE_DURATIONS[service] || 30;
+
+    for(let t=new Date(open); t<close; t=new Date(t.getTime()+SLOT_EVERY_MIN*60000)){
+      if(fmtDate(t)===fmtDate(now) && t<lead) continue;
+
+      const b=document.createElement('button');
+      b.type='button';
+      b.className='slot';
+      b.textContent=t.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+      b.dataset.time=b.textContent;
+
+      b.addEventListener('click',()=>{
+        [...el.querySelectorAll('.slot')].forEach(x=>x.setAttribute('aria-selected','false'));
+        b.setAttribute('aria-selected','true');
+        chosen.value=b.dataset.time;
+        document.getElementById('chosen').textContent=`Selected: ${dateStr} · ${b.dataset.time}`;
+      });
+
+      el.appendChild(b);
+    }
+
+    if(!el.children.length){
+      const p=document.createElement('span');
+      p.className='note';
+      p.textContent='No slots available for this day.';
+      el.appendChild(p);
+    }
+  }
+
+  function setMinDate(){
+    const dateInput=document.getElementById('date');
+    const now=toLocal(new Date());
+    const soon=new Date(now.getTime()+LEAD_TIME_MIN*60000);
+    const firstOpen=nextOpenDate(soon);
+
+    dateInput.min=fmtDate(firstOpen);
+    dateInput.value=fmtDate(firstOpen);
+
+    if(!isOpenDay(firstOpen)) dateInput.value='';
+  }
+
+  document.getElementById('service').addEventListener('change',()=>{
+    const date=document.getElementById('date').value;
+    if(date) buildSlots(date);
+  });
+
+  document.getElementById('date').addEventListener('change',(e)=>{
+    const d=new Date(`${e.target.value}T00:00:00`);
+    if(!isOpenDay(d)){
+      alert('We are open Monday through Saturday.');
+      e.target.value='';
+      document.getElementById('slots').innerHTML='';
+      return;
+    }
+    buildSlots(e.target.value);
+  });
+
+  setMinDate();
+  if(document.getElementById('date').value){
+    buildSlots(document.getElementById('date').value);
+  }
+
+  const form = document.getElementById('bookingForm');
+  const success = document.getElementById('success');
+  const waLink = document.getElementById('waLink');
+
+  function buildWhatsAppMessage(data){
+    return [
+      "🐾 *New Appointment Request*",
+      `Name: ${data.name}`,
+      `Phone: ${data.phone}`,
+      `Email: ${data.email || "-"}`,
+      `Service: ${data.service}`,
+      `Date: ${data.date}`,
+      `Time: ${data.time}`,
+      `Notes: ${data.notes || "-"}`,
+    ].join("\n");
+  }
+
+  function openWhatsApp(data){
+    const msg = encodeURIComponent(buildWhatsAppMessage(data));
+    const url = `https://wa.me/${WHATSAPP_NUMBER}?text=${msg}`;
+    window.open(url, "_blank");
+  }
+
+  async function saveToSheets(data){
+    if (!SHEETS_WEBAPP_URL || SHEETS_WEBAPP_URL.includes("PEGA_AQUI")) return;
+    await fetch(SHEETS_WEBAPP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(data)
+    });
+  }
+
+  waLink.href = `https://wa.me/${WHATSAPP_NUMBER}`;
+  waLink.target = "_blank";
+  waLink.rel = "noopener";
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const data = {
+      name: document.getElementById("name").value.trim(),
+      phone: document.getElementById("phone").value.trim(),
+      email: document.getElementById("email").value.trim(),
+      service: document.getElementById("service").value,
+      date: document.getElementById("date").value,
+      time: document.getElementById("time").value,
+      notes: document.getElementById("notes").value.trim(),
+    };
+
+    if (!data.service) { alert("Please select a service."); return; }
+    if (!data.date) { alert("Please select a date."); return; }
+    if (!data.time) { alert("Please select a time slot."); return; }
+
+    try {
+      await saveToSheets(data);
+      success.style.display = "block";
+      success.textContent = "Saved ✔️ Opening WhatsApp to confirm...";
+    } catch (err) {
+      success.style.display = "block";
+      success.textContent = "Could not save to Sheets (still opening WhatsApp).";
+    }
+
+    openWhatsApp(data);
+  });
+
+  document.getElementById("resetBtn").addEventListener("click", () => {
+    form.reset();
+    document.getElementById("slots").innerHTML = "";
+    document.getElementById("time").value = "";
+    document.getElementById("chosen").textContent = "";
+    success.style.display = "none";
+
+    setMinDate();
+    if (document.getElementById('date').value) buildSlots(document.getElementById('date').value);
+  });
+</script>
+</body>
+</html>
